@@ -1,0 +1,64 @@
+{
+  "name": "envalidator",
+  "version": "0.1.0",
+  "description": "Generate ENVIRONMENT.md and .env.example from your envalid specs. Detect drift between your .env and your code.",
+  "type": "module",
+  "bin": {
+    "envalidator": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./config": {
+      "import": "./dist/config.js",
+      "require": "./dist/config.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "peerDependencies": {
+    "envalid": ">=7.0.0"
+  },
+  "devDependencies": {
+    "@types/glob": "^8.1.0",
+    "@types/node": "^22.15.0",
+    "@typescript-eslint/eslint-plugin": "^8.30.0",
+    "@typescript-eslint/parser": "^8.30.0",
+    "envalid": "^8.1.0",
+    "eslint": "^9.23.0",
+    "eslint-plugin-perfectionist": "^5.9.0",
+    "tsup": "^8.4.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.1.0"
+  },
+  "keywords": [
+    "envalid",
+    "environment",
+    "env",
+    "documentation",
+    "dotenv",
+    "validation",
+    "typescript"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "glob": "^13.0.6",
+    "jiti": "^2.4.0"
+  }
+}
