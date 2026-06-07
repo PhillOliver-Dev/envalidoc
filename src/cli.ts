@@ -36,6 +36,9 @@ interface CliArgs {
   config: string | null;
   cwd: string | null;
   envFile: string | null;
+  format: string | null;
+  failLevel: string | null;
+  ignore: string[];
   check: boolean;
 }
 
@@ -45,6 +48,9 @@ function parseArgs(argv: string[]): CliArgs {
     config: null,
     cwd: null,
     envFile: null,
+    format: null,
+    failLevel: null,
+    ignore: [],
     check: false,
   };
 
@@ -56,6 +62,12 @@ function parseArgs(argv: string[]): CliArgs {
       args.cwd = argv[++i] as string;
     } else if (arg === '--env-file') {
       args.envFile = argv[++i] as string;
+    } else if (arg === '--format') {
+      args.format = argv[++i] as string;
+    } else if (arg === '--fail-level') {
+      args.failLevel = argv[++i] as string;
+    } else if (arg === '--ignore') {
+      args.ignore.push(argv[++i] as string);
     } else if (arg === '--check') {
       args.check = true;
     } else if (!arg.startsWith('-')) {
@@ -64,6 +76,15 @@ function parseArgs(argv: string[]): CliArgs {
   }
 
   return args;
+}
+
+function shouldFail(drift: DriftResult, failLevel: string): boolean {
+  if (failLevel === 'off') return false;
+  if (failLevel === 'warning') return drift.issues.some(
+    (i) => i.severity === 'error' || i.severity === 'warning',
+  );
+  // default: 'error'
+  return drift.hasErrors;
 }
 
 function printDrift(drift: DriftResult): void {
@@ -83,6 +104,10 @@ function printDrift(drift: DriftResult): void {
   }
 }
 
+function printDriftJson(drift: DriftResult): void {
+  process.stdout.write(JSON.stringify(drift, null, 2) + '\n');
+}
+
 async function main(): Promise<void> {
   const args = parseArgs(process.argv);
 
@@ -96,52 +121,75 @@ async function main(): Promise<void> {
       '  check     Detect drift between .env and envalid specs',
       '',
       'Flags:',
-      '  --config <path>     Path to config file (default: auto-discover)',
-      '  --cwd <path>        Working directory',
-      '  --env-file <path>   Override .env file path for drift detection',
-      '  --check             Run drift detection after generation (use with gen)',
+      '  --config <path>       Path to config file (default: auto-discover)',
+      '  --cwd <path>          Working directory',
+      '  --env-file <path>     Override .env file path for drift detection',
+      '  --format <human|json> Output format (default: human)',
+      '  --fail-level <error|warning|off>  Minimum severity to fail CI (default: error)',
+      '  --ignore <pattern>    Ignore vars matching pattern in drift checks (repeatable)',
+      '  --check               Run drift detection after generation (use with gen)',
       '',
     ].join('\n');
     process.stdout.write(usage);
     process.exit(0);
   }
 
+  const baseDir = args.cwd ?? process.cwd();
+  const failLevel = args.failLevel ?? 'error';
+  const outputFormat = args.format ?? 'human';
+
   try {
     if (args.command === 'gen') {
       process.stdout.write(`${bold}Generating env documentation${reset}\n`);
 
-      // Use the shared run() from index.ts for the core logic.
-      // run() always writes files and returns drift.
       const result = await run();
 
+      // Print source warnings
+      for (const w of result.warnings) {
+        warn(w);
+      }
+
       if (args.check && result.drift) {
-        process.stdout.write(
-          `\n${bold}Checking drift${reset}\n`,
-        );
-        printDrift(result.drift);
-        if (result.drift.hasErrors) {
+        process.stdout.write(`\n${bold}Checking drift${reset}\n`);
+        if (outputFormat === 'json') {
+          printDriftJson(result.drift);
+        } else {
+          printDrift(result.drift);
+        }
+        if (shouldFail(result.drift, failLevel)) {
           process.exit(1);
         }
       }
+
+      success('Done.');
     } else if (args.command === 'check') {
       process.stdout.write(`${bold}Checking drift${reset}\n`);
 
-      // Load config, extract specs via shared extractAllSpecs, then check drift
-      const config = await loadConfig(args.cwd ?? undefined);
+      const config = await loadConfig(baseDir);
       const resolvedEnvFile = args.envFile ?? config.envFilePath;
-      const envFilePath = resolve(
-        args.cwd ?? process.cwd(),
-        resolvedEnvFile,
-      );
+      const envFilePath = resolve(baseDir, resolvedEnvFile);
 
-      const specs = await extractAllSpecs(
+      const { specs, warnings } = await extractAllSpecs(
         config.sources,
         config.secretPatterns,
         config.overrides,
+        baseDir,
       );
-      const drift = await detectDrift(specs, envFilePath);
-      printDrift(drift);
-      if (drift.hasErrors) {
+
+      // Print source warnings
+      for (const w of warnings) {
+        warn(w);
+      }
+
+      const drift = await detectDrift(specs, envFilePath, { ignore: args.ignore });
+
+      if (outputFormat === 'json') {
+        printDriftJson(drift);
+      } else {
+        printDrift(drift);
+      }
+
+      if (shouldFail(drift, failLevel)) {
         process.exit(1);
       }
     } else {

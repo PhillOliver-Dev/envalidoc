@@ -79,7 +79,7 @@ async function loadConfigFile(configPath: string): Promise<EnvalidatorConfig> {
 /**
  * Merge a user-provided config with defaults to produce a fully resolved config.
  */
-function mergeConfig(user: EnvalidatorConfig): ResolvedConfig {
+export function mergeConfig(user: EnvalidatorConfig): ResolvedConfig {
   const output = {
     markdown: user.output?.markdown ?? DEFAULT_CONFIG.output.markdown,
     envExample: user.output?.envExample ?? DEFAULT_CONFIG.output.envExample,

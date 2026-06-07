@@ -6,30 +6,10 @@
  * recognised spec exports (envSpec, envConfig, env, or default).
  */
 
-import { createRequire } from 'node:module';
-import nodePath from 'node:path';
 import type { EnvVarSpec, EnvVarType } from '../types.js';
 import { SPEC_EXPORT_NAMES } from '../types.js';
 import { getModuleIdentifier } from '../utils/cjs-bootstrap.js';
-
-/**
- * Create a require function for resolve() support.
- * In ESM this uses import.meta.url; in CJS the bundled output may not have
- * import.meta.url available, so we fall back to the global require.
- */
-const requireFn = (() => {
-  try {
-    const metaUrl = import.meta.url;
-    if (typeof metaUrl === 'string' && metaUrl.length > 0) {
-      return createRequire(metaUrl);
-    }
-  } catch {
-    // import.meta not available (CJS)
-  }
-  return typeof globalThis.require === 'function'
-    ? (globalThis.require as NodeRequire)
-    : createRequire(process.cwd());
-})();
+import { resolveSourcePath } from '../utils/resolver.js';
 
 const moduleIdentifier = getModuleIdentifier();
 
@@ -73,8 +53,6 @@ interface ImportedModule {
 // Helpers
 // ---------------------------------------------------------------------------
 
-const require = requireFn;
-
 /**
  * Error message patterns used to infer the validator type from
  * envalid's parse error messages. Each validator throws a distinct
@@ -109,27 +87,6 @@ function isValidator(value: unknown): value is EnvalidValidator {
   if (Array.isArray(value)) return false;
   const v = value as Record<string, unknown>;
   return typeof v._parse === 'function';
-}
-
-/**
- * Resolve a source path to an absolute file path.
- *
- * - If the path starts with '.' or '/' it is treated as a file-system path
- *   and resolved relative to `cwd` (or `process.cwd()`).
- * - Otherwise it is treated as a Node package specifier and resolved via
- *   `require.resolve`.
- */
-function resolveSourcePath(sourcePath: string, cwd?: string): string {
-  const resolvedCwd = cwd ?? process.cwd();
-
-  // Relative or absolute file path
-  if (sourcePath.startsWith('.') || sourcePath.startsWith('/')) {
-    const absolute = nodePath.resolve(resolvedCwd, sourcePath);
-    return require.resolve(absolute);
-  }
-
-  // Package specifier (e.g. '@acme/core/env' or 'my-lib/env')
-  return require.resolve(sourcePath, { paths: [resolvedCwd] });
 }
 
 /**
@@ -279,6 +236,7 @@ async function importModule(resolvedPath: string): Promise<ImportedModule> {
 
   const restoreExit = interceptProcessExit();
   const [getOutput, restoreOutput] = captureOutput();
+  let outputRestored = false;
 
   try {
     return jiti(resolvedPath) as ImportedModule;
@@ -288,6 +246,7 @@ async function importModule(resolvedPath: string): Promise<ImportedModule> {
 
     // Restore output capture before retry (retry needs clean streams)
     restoreOutput();
+    outputRestored = true;
 
     const missingVars = parseMissingVarsFromOutput(getOutput());
     if (missingVars.length === 0) throw err;
@@ -302,8 +261,7 @@ async function importModule(resolvedPath: string): Promise<ImportedModule> {
     }
   } finally {
     restoreExit();
-    // Restore output if not already restored (success path)
-    restoreOutput();
+    if (!outputRestored) restoreOutput();
   }
 }
 

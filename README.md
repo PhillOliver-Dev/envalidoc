@@ -16,6 +16,10 @@ Your envalid schema is the source of truth for your environment variables. But d
 - **Multi-source** — point at local files or dependency packages (e.g. `@acme/core/env`)
 - **Glob patterns** — use wildcards for monorepos (e.g. `./packages/*/src/env.ts`)
 - **Works with JS and TS** — load config from `.ts` or `.js` files
+- **Resilient extraction** — continues extracting from other sources if one fails
+- **Ignore patterns** — exclude specific vars from drift checks
+- **Machine-readable output** — `--format json` for CI pipelines
+- **Configurable fail level** — control whether warnings fail CI
 
 ## Install
 
@@ -54,27 +58,17 @@ export const envSpec = {
     desc: 'External API authentication key',
   }),
 };
-
-// This stays separate — envalidator skips this
-export const env = cleanEnv(process.env, envSpec);
 ```
 
 ### 2. Create a config file
 
 ```ts
 // envalidator.config.ts
-import { defineConfig } from 'envalidator/config';
+import { defineConfig } from 'envalidator';
 
 export default defineConfig({
-  // Paths to modules exporting envalid specs
-  sources: ['./src/env.ts'],
-
-  // Glob patterns are supported for monorepos
-  // sources: ['./packages/*/src/env.ts'],
-  // sources: ['./src/env-*.ts', './packages/**/env.ts'],
-
-  // Package specifiers work too (for shared env packages)
-  // sources: ['@acme/core/env', './src/local-env.ts'],
+  // Paths to your envalid spec files
+  sources: ['./src/env.ts', './src/local-env.ts'],
 
   // Optional: override secret detection or descriptions
   overrides: {
@@ -110,13 +104,11 @@ npx envalidator check
 
 Compares your `.env` against your specs. Reports:
 
-| Issue | Severity |
-|---|---|
-| Required var missing from `.env` | Error |
-| Type mismatch (e.g. `PORT=abc`) | Error |
-| Optional var missing from `.env` | Warning |
-| Extra var in `.env` not in spec | Warning |
-| Secret value found in `.env` | Warning |
+- **Error**: Required var missing from `.env`
+- **Error**: Type mismatch (e.g. `PORT=abc`)
+- **Warning**: Optional var missing from `.env`
+- **Warning**: Extra var in `.env` not in spec
+- **Warning**: Secret value found in `.env`
 
 ### Generate and check in one step
 
@@ -131,6 +123,9 @@ npx envalidator gen --check
 | `--config <path>` | Path to config file (default: auto-discover) |
 | `--cwd <path>` | Working directory |
 | `--env-file <path>` | Override `.env` file path for drift detection |
+| `--format <human\|json>` | Output format (default: human) |
+| `--fail-level <error\|warning\|off>` | Minimum severity to exit with code 1 (default: error) |
+| `--ignore <pattern>` | Exclude vars matching pattern from drift checks (repeatable) |
 | `--check` | Run drift detection after generation |
 
 ### CI integration
@@ -141,7 +136,10 @@ npx envalidator gen --check
   run: npx envalidator gen
 
 - name: Check env drift
-  run: npx envalidator check
+  run: npx envalidator check --format json --fail-level warning
+
+- name: Check env drift (ignoring local-only vars)
+  run: npx envalidator check --ignore EDITOR --ignore PAGER
 ```
 
 ## Output
@@ -161,16 +159,18 @@ npx envalidator gen --check
 ## Sources
 
 - `./src/env.ts`
+- `./src/local-env.ts`
 ```
 
 ### .env.example
 
 ```bash
+# PostgreSQL connection string
+# Docs: https://example.com/docs/db
+DATABASE_URL=postgresql://localhost:5432/mydb
+
 # External API authentication key
 API_KEY=YOUR_API_KEY_HERE
-
-# PostgreSQL connection string (example: postgresql://localhost:5432/mydb)
-DATABASE_URL=postgresql://localhost:5432/mydb
 
 # Application environment
 # Choices: development, test, production
@@ -180,16 +180,29 @@ DATABASE_URL=postgresql://localhost:5432/mydb
 # PORT=3000
 ```
 
-## Config Reference
+## Programmatic API
 
 ```ts
-interface EnvalidatorConfig {
-  /** Import paths to modules exporting envalid specs. Supports glob patterns. */
+import { run, extractFromSource, detectDrift, loadConfig } from 'envalidator';
+
+// Full pipeline: extract, generate, drift check
+const { specs, drift, warnings } = await run();
+
+// Or just extract specs from a single source
+const specs = await extractFromSource('./src/env.ts');
+
+// Or load config and check drift yourself
+const config = await loadConfig('./my-project');
+```
+
+### Config type
+
+```ts
+import type { defineConfig } from 'envalidator';
+
+export default defineConfig({
+  /** Import paths to envalid spec files */
   sources: string[];
-  // Examples:
-  //   ['./src/env.ts']
-  //   ['./packages/*/src/env.ts']
-  //   ['@acme/core/env', './src/local-env.ts']
 
   /** Output file paths */
   output?: {
@@ -211,13 +224,13 @@ interface EnvalidatorConfig {
 
   /** Path to .env file for drift detection */
   envFilePath?: string; // Default: '.env'
-}
+});
 ```
 
 ## How It Works
 
 1. **Resolves** each source path (relative file or package specifier)
-2. **Imports** the module using dynamic `import()`
+2. **Imports** the module using jiti (handles TS and extensionless imports)
 3. **Finds** the spec export (`envSpec`, `envConfig`, `env`, or default export)
 4. **Extracts** metadata from each envalid validator: type, description, default, choices, example
 5. **Detects secrets** using pattern matching + explicit overrides

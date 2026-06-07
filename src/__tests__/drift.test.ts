@@ -143,4 +143,27 @@ describe('detectDrift', () => {
       expect.objectContaining({ type: 'missing-required' }),
     );
   });
+
+  it('skips ignored vars from drift checks', async () => {
+    const envPath = join(TEST_DIR, 'ignore.env');
+    writeFileSync(envPath, 'DATABASE_URL=postgres://localhost/db\nEDITOR=vim\n');
+    const result = await detectDrift(specs(), envPath, { ignore: ['EDITOR'] });
+    // EDITOR is not in specs but should NOT be reported as extra-var
+    expect(result.issues).not.toContainEqual(
+      expect.objectContaining({ varName: 'EDITOR' }),
+    );
+    // But API_KEY is still missing-required (not ignored)
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({ type: 'missing-required', varName: 'API_KEY' }),
+    );
+  });
+
+  it('ignore patterns are case-insensitive', async () => {
+    const envPath = join(TEST_DIR, 'ignore-case.env');
+    writeFileSync(envPath, 'DATABASE_URL=postgres://localhost/db\nMY_SECRET_STUFF=value\n');
+    const result = await detectDrift(specs(), envPath, { ignore: ['secret'] });
+    expect(result.issues).not.toContainEqual(
+      expect.objectContaining({ varName: 'MY_SECRET_STUFF' }),
+    );
+  });
 });

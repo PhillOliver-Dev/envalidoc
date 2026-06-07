@@ -73,18 +73,19 @@ export function expandSourceGlobs(sources: string[], cwd: string): string[] {
  *
  * @throws {Error} if the path cannot be resolved
  */
-export function resolveSourcePath(sourcePath: string, cwd: string): string {
+export function resolveSourcePath(sourcePath: string, cwd?: string): string {
   if (sourcePath.startsWith('.') || sourcePath.startsWith('/')) {
     return resolveRelativeSource(sourcePath, cwd);
   }
 
   // Package specifier — use Node's require.resolve from the given cwd
-  const requireFromCwd = createRequire(join(cwd, 'noop.js'));
+  const cwdDir = cwd ?? process.cwd();
+  const requireFromCwd = createRequire(join(cwdDir, 'noop.js'));
   try {
     return requireFromCwd.resolve(sourcePath);
   } catch {
     throw new Error(
-      `Cannot resolve package specifier "${sourcePath}" from "${cwd}". ` +
+      `Cannot resolve package specifier "${sourcePath}" from "${cwdDir}". ` +
         `Ensure the package is installed and the subpath export exists.`
     );
   }
@@ -93,8 +94,8 @@ export function resolveSourcePath(sourcePath: string, cwd: string): string {
 /**
  * Try to resolve a relative source path to an existing file.
  */
-function resolveRelativeSource(sourcePath: string, cwd: string): string {
-  const fromCwd = resolve(cwd, sourcePath);
+function resolveRelativeSource(sourcePath: string, cwd?: string): string {
+  const fromCwd = resolve(cwd ?? process.cwd(), sourcePath);
 
   // Try the literal path first
   if (hasFileExtension(sourcePath) && fileExists(fromCwd)) {

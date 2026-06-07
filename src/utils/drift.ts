@@ -6,18 +6,32 @@ import { readFile } from 'node:fs/promises';
 import type { EnvVarSpec, DriftResult, DriftIssue } from '../types.js';
 import { parseDotEnv } from './parser.js';
 
+/** Options for drift detection. */
+export interface DriftOptions {
+  /** Patterns to exclude vars from drift checks (case-insensitive substring match). */
+  ignore?: string[];
+}
+
 /**
  * Detect drift between the .env file and the declared env var specs.
  *
  * @param specs - Map of env var name to spec
  * @param envFilePath - Path to the .env file to check
+ * @param options - Optional drift detection options
  * @returns DriftResult with all issues found
  */
 export async function detectDrift(
   specs: Map<string, EnvVarSpec>,
-  envFilePath: string
+  envFilePath: string,
+  options?: DriftOptions,
 ): Promise<DriftResult> {
   const issues: DriftIssue[] = [];
+  const ignorePatterns = options?.ignore ?? [];
+
+  /** Check if a var name should be skipped due to ignore patterns. */
+  const isIgnored = (name: string): boolean =>
+    ignorePatterns.length > 0 &&
+    ignorePatterns.some((p) => name.toUpperCase().includes(p.toUpperCase()));
 
   let envVars: Map<string, string>;
   try {
@@ -35,6 +49,8 @@ export async function detectDrift(
 
   // Check each spec against the .env file
   for (const [name, spec] of specs) {
+    if (isIgnored(name)) continue;
+
     const value = envVars.get(name);
 
     if (value === undefined) {
@@ -84,6 +100,7 @@ export async function detectDrift(
 
   // Check for extra variables in .env that are not in specs
   for (const name of envVars.keys()) {
+    if (isIgnored(name)) continue;
     if (!specs.has(name)) {
       issues.push({
         severity: 'warning',
