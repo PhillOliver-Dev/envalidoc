@@ -37,7 +37,8 @@ export function generateEnvExample(specs: Map<string, EnvVarSpec>): string {
     // Determine the value
     const value = resolveExampleValue(spec);
 
-    if (spec.optional && spec.defaultValue !== undefined) {
+    // Comment out optional vars (those with default or devDefault)
+    if (spec.optional) {
       lines.push(`# ${spec.name}=${value}`);
     } else {
       lines.push(`${spec.name}=${value}`);
@@ -58,13 +59,19 @@ function resolveExampleValue(spec: EnvVarSpec): string {
     return `YOUR_${spec.name}_HERE`;
   }
 
-  // Prefer example over default
+  // Prefer example over default values
   if (spec.example !== undefined) {
     return spec.example;
   }
 
+  // Use production default if available
   if (spec.defaultValue !== undefined) {
     return spec.defaultValue;
+  }
+
+  // Fall back to development default
+  if (spec.devDefaultValue !== undefined) {
+    return spec.devDefaultValue;
   }
 
   return '';

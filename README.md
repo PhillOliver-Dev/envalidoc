@@ -1,10 +1,29 @@
-# Envalidator
+[![npm version](https://badge.fury.io/js/envalidoc.svg)](https://www.npmjs.com/package/envalidoc)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node.js Version](https://img.shields.io/node/v/envalidoc)](https://nodejs.org)
+
+# Envalidoc
 
 Generate `ENVIRONMENT.md` and `.env.example` from your **envalid** specs. Detect drift between your `.env` and your code.
 
+- [Why](#why)
+- [Features](#features)
+- [Install](#install)
+- [Setup](#setup)
+- [Usage](#usage)
+  - [Generate documentation](#generate-documentation)
+  - [Check for drift](#check-for-drift)
+  - [Generate and check in one step](#generate-and-check-in-one-step)
+  - [CLI flags](#cli-flags)
+  - [CI integration](#ci-integration)
+- [Output](#output)
+- [Programmatic API](#programmatic-api)
+- [How It Works](#how-it-works)
+- [License](#license)
+
 ## Why
 
-Your envalid schema is the source of truth for your environment variables. But documentation inevitably drifts. Envalidator reads your actual envalid spec objects and generates accurate, type-aware documentation — no guessing, no manual upkeep.
+Your envalid schema is the source of truth for your environment variables. But documentation inevitably drifts. Envalidoc reads your actual envalid spec objects and generates accurate, type-aware documentation — no guessing, no manual upkeep.
 
 ## Features
 
@@ -24,7 +43,7 @@ Your envalid schema is the source of truth for your environment variables. But d
 ## Install
 
 ```bash
-npm install -D envalidator
+npm install -D @phillthedev/envalidoc
 ```
 
 Requires `envalid >= 7.0.0` as a peer dependency.
@@ -33,13 +52,13 @@ Requires `envalid >= 7.0.0` as a peer dependency.
 
 ### 1. Export your envalid spec
 
-Separate the spec from `cleanEnv` so envalidator can import it without triggering validation:
+Separate the spec from `cleanEnv` so envalidoc can import it without triggering validation:
 
 ```ts
 // src/env.ts
 import { cleanEnv, str, port, bool } from 'envalid';
 
-// Export this — envalidator will read it
+// Export this — envalidoc will read it
 export const envSpec = {
   NODE_ENV: str({
     choices: ['development', 'test', 'production'],
@@ -53,18 +72,44 @@ export const envSpec = {
   DATABASE_URL: str({
     desc: 'PostgreSQL connection string',
     example: 'postgresql://localhost:5432/mydb',
+    docs: 'https://docs.example.com/database-connection',
   }),
   API_KEY: str({
     desc: 'External API authentication key',
+    docs: 'https://docs.example.com/api-authentication',
   }),
 };
 ```
 
-### 2. Create a config file
+### 2. Use the spec with cleanEnv (optional)
+
+While envalidoc only needs the exported spec object, you'll likely want to use it with `cleanEnv` in your application:
 
 ```ts
-// envalidator.config.ts
-import { defineConfig } from 'envalidator';
+// src/env.ts (continued)
+import { cleanEnv } from 'envalid';
+
+export const envSpec = { /* ... */ };
+
+// Export the validated environment for use in your app
+export const env = cleanEnv(process.env, envSpec);
+export default env;
+```
+
+Then import the validated environment elsewhere:
+
+```ts
+// src/app.ts
+import { env } from './env.js';
+
+console.log(`Running in ${env.NODE_ENV} on port ${env.PORT}`);
+```
+
+### 3. Create a config file
+
+```ts
+// envalidoc.config.ts
+import { defineConfig } from 'envalidoc';
 
 export default defineConfig({
   // Paths to your envalid spec files
@@ -84,14 +129,21 @@ export default defineConfig({
 });
 ```
 
-Config file is auto-discovered as `envalidator.config.ts`, `envalidator.config.js`, or `envalidator.config.mjs`.
+Config file is auto-discovered as `envalidoc.config.ts`, `envalidoc.config.js`, or `envalidoc.config.mjs`. You can also use a named export called `envalidocConfig`:
+
+```ts
+// envalidoc.config.ts
+import { defineConfig } from 'envalidoc';
+
+export const envalidocConfig = defineConfig({ /* ... */ });
+```
 
 ## Usage
 
 ### Generate documentation
 
 ```bash
-npx envalidator gen
+npx envalidoc gen
 ```
 
 This creates/updates `ENVIRONMENT.md` and `.env.example` based on your envalid specs.
@@ -99,7 +151,7 @@ This creates/updates `ENVIRONMENT.md` and `.env.example` based on your envalid s
 ### Check for drift
 
 ```bash
-npx envalidator check
+npx envalidoc check
 ```
 
 Compares your `.env` against your specs. Reports:
@@ -110,10 +162,12 @@ Compares your `.env` against your specs. Reports:
 - **Warning**: Extra var in `.env` not in spec
 - **Warning**: Secret value found in `.env`
 
+> **Note:** The `.env` parser supports the `export` prefix commonly used in bash scripts (e.g., `export DATABASE_URL=...`).
+
 ### Generate and check in one step
 
 ```bash
-npx envalidator gen --check
+npx envalidoc gen --check
 ```
 
 ### CLI flags
@@ -127,19 +181,20 @@ npx envalidator gen --check
 | `--fail-level <error\|warning\|off>` | Minimum severity to exit with code 1 (default: error) |
 | `--ignore <pattern>` | Exclude vars matching pattern from drift checks (repeatable) |
 | `--check` | Run drift detection after generation |
+| `--version` / `-v` | Show version number |
 
 ### CI integration
 
 ```yaml
 # GitHub Actions
 - name: Generate env docs
-  run: npx envalidator gen
+  run: npx envalidoc gen
 
 - name: Check env drift
-  run: npx envalidator check --format json --fail-level warning
+  run: npx envalidoc check --format json --fail-level warning
 
 - name: Check env drift (ignoring local-only vars)
-  run: npx envalidator check --ignore EDITOR --ignore PAGER
+  run: npx envalidoc check --ignore EDITOR --ignore PAGER
 ```
 
 ## Output
@@ -166,10 +221,11 @@ npx envalidator gen --check
 
 ```bash
 # PostgreSQL connection string
-# Docs: https://example.com/docs/db
+# Docs: https://docs.example.com/database-connection
 DATABASE_URL=postgresql://localhost:5432/mydb
 
 # External API authentication key
+# Docs: https://docs.example.com/api-authentication
 API_KEY=YOUR_API_KEY_HERE
 
 # Application environment
@@ -183,7 +239,7 @@ API_KEY=YOUR_API_KEY_HERE
 ## Programmatic API
 
 ```ts
-import { run, extractFromSource, detectDrift, loadConfig } from 'envalidator';
+import { run, extractFromSource, detectDrift, loadConfig } from 'envalidoc';
 
 // Full pipeline: extract, generate, drift check
 const { specs, drift, warnings } = await run();
@@ -192,38 +248,40 @@ const { specs, drift, warnings } = await run();
 const specs = await extractFromSource('./src/env.ts');
 
 // Or load config and check drift yourself
-const config = await loadConfig('./my-project');
+const config = await loadConfig(); // Auto-discovers envalidoc.config.*
 ```
 
 ### Config type
 
 ```ts
-import type { defineConfig } from 'envalidator';
+import { defineConfig } from 'envalidoc';
 
 export default defineConfig({
-  /** Import paths to envalid spec files */
-  sources: string[];
+  // Import paths to envalid spec files
+  sources: ['./src/env.ts'],
 
-  /** Output file paths */
-  output?: {
-    markdown?: string;   // Default: './ENVIRONMENT.md'
-    envExample?: string; // Default: './.env.example'
-    title?: string;       // Default: 'Environment Variables'
-  };
+  // Output file paths (all optional)
+  output: {
+    markdown: './ENVIRONMENT.md',   // Default: './ENVIRONMENT.md'
+    envExample: './.env.example', // Default: './.env.example'
+    title: 'Environment Variables', // Default: 'Environment Variables'
+  },
 
-  /** Patterns for automatic secret detection (case-insensitive substring match) */
-  secretPatterns?: string[];
+  // Patterns for automatic secret detection (case-insensitive substring match)
+  secretPatterns: ['KEY', 'SECRET', 'TOKEN'],
   // Default: ['KEY', 'SECRET', 'TOKEN', 'PASSWORD', 'PASSWD', 'CREDENTIAL', 'AUTH', 'PRIVATE']
 
-  /** Explicit overrides for specific variables */
-  overrides?: Record<string, {
-    secret?: boolean;
-    description?: string;
-    example?: string;
-  }>;
+  // Explicit overrides for specific variables
+  overrides: {
+    API_KEY: {
+      secret: true,
+      description: 'Custom description',
+      example: 'custom-example-value',
+    },
+  },
 
-  /** Path to .env file for drift detection */
-  envFilePath?: string; // Default: '.env'
+  // Path to .env file for drift detection
+  envFilePath: '.env', // Default: '.env'
 });
 ```
 

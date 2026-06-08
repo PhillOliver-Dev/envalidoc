@@ -213,7 +213,7 @@ function parseMissingVarsFromOutput(output: string): string[] {
 function stubEnvVars(vars: string[]): () => void {
   const originalEnv = { ...process.env };
   for (const v of vars) {
-    process.env[v] = 'envalidator_dummy';
+    process.env[v] = 'envalidoc_dummy';
   }
   return () => {
     for (const key of Object.keys(process.env)) {
@@ -308,6 +308,7 @@ function validatorToSpec(
     optional: hasDefault || hasDevDefault,
     secret: false, // callers / config layer apply secret heuristics
     defaultValue: stringify(validator.default),
+    devDefaultValue: stringify(validator.devDefault),
     choices: validator.choices?.length ? [...validator.choices] : undefined,
     example: validator.example,
     docs: validator.docs,

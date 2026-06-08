@@ -1,5 +1,5 @@
 /**
- * Core types for envalidator.
+ * Core types for envalidoc.
  *
  * These types represent the extracted information from envalid specs
  * and the configuration for the tool itself.
@@ -39,6 +39,9 @@ export interface EnvVarSpec {
 
   /** Default value, if defined in the spec */
   defaultValue?: string;
+
+  /** Development default value, if defined in the spec */
+  devDefaultValue?: string;
 
   /** Valid choices, if restricted by the `choices` spec option */
   choices?: readonly string[];
@@ -87,7 +90,7 @@ export interface DriftResult {
 
 // --- Configuration ---
 
-export interface EnvalidatorConfig {
+export interface EnvalidocConfig {
   /**
    * Import paths to envalid spec definitions.
    * Each path should resolve to a module exporting an envalid spec object.
@@ -136,7 +139,7 @@ export interface OutputConfig {
   title?: string;
 }
 
-/** Shape of the user's config file (mirrors EnvalidatorConfig but with looser types) */
+/** Shape of the user's config file (mirrors EnvalidocConfig but with looser types) */
 export interface UserConfigFile {
   sources?: string[];
   output?: Partial<OutputConfig>;
@@ -146,7 +149,7 @@ export interface UserConfigFile {
 }
 
 /** Resolved config with all defaults applied */
-export interface ResolvedConfig extends Readonly<EnvalidatorConfig> {
+export interface ResolvedConfig extends Readonly<EnvalidocConfig> {
   output: Required<OutputConfig>;
   secretPatterns: string[];
   overrides: Record<string, Partial<Pick<EnvVarSpec, 'secret' | 'description' | 'example'>>>;

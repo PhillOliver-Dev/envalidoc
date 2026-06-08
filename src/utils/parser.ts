@@ -46,19 +46,28 @@ export function parseDotEnv(content: string): Map<string, string> {
       continue;
     }
 
+    // Strip 'export ' prefix if present (common in bash export syntax)
+    let keyLine = trimmed;
+    let rawValue = trimmed;
+    if (keyLine.startsWith('export ')) {
+      keyLine = keyLine.slice(7).trim();
+      // Also strip from the line we'll use for value extraction
+      rawValue = keyLine;
+    }
+
     // Find the first '=' that separates key from value
-    const eqIndex = trimmed.indexOf('=');
+    const eqIndex = keyLine.indexOf('=');
     if (eqIndex === -1) {
       // No '=' found — skip lines without assignment
       continue;
     }
 
-    const key = trimmed.slice(0, eqIndex).trim();
+    const key = keyLine.slice(0, eqIndex).trim();
     if (key === '') {
       continue;
     }
 
-    let rawValue = trimmed.slice(eqIndex + 1);
+    rawValue = rawValue.slice(eqIndex + 1);
 
     // Check for quoted values
     if (rawValue.startsWith('"')) {

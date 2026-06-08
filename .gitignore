@@ -1,9 +1,4 @@
 node_modules/
 dist/
 coverage/
-*.js
-*.d.ts
-*.cjs
-*.mjs
-!eslint.config.js
 *.tgz

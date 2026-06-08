@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 
 // Use OS temp dir so vitest's file watcher doesn't pick up our test fixtures
-const TEST_DIR = resolve(tmpdir(), `envalidator-glob-test-${randomUUID()}`);
+const TEST_DIR = resolve(tmpdir(), `envalidoc-glob-test-${randomUUID()}`);
 
 describe('expandSourceGlobs', () => {
   beforeAll(() => {

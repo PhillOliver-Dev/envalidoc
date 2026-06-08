@@ -9,7 +9,7 @@ export { expandSourceGlobs } from './utils/resolver.js';
 export type {
   EnvVarSpec,
   EnvVarType,
-  EnvalidatorConfig,
+  EnvalidocConfig,
   DriftResult,
   DriftIssue,
   ResolvedConfig,
@@ -29,7 +29,7 @@ import { generateEnvExample } from './generators/env-example.js';
 import { extractFromSource } from './extractors/envalid.js';
 import { detectDrift } from './utils/drift.js';
 import { expandSourceGlobs } from './utils/resolver.js';
-import type { EnvalidatorConfig, EnvVarSpec, DriftResult } from './types.js';
+import type { EnvalidocConfig, EnvVarSpec, DriftResult } from './types.js';
 
 /**
  * Extract specs from all configured sources, apply secret detection,
@@ -100,24 +100,28 @@ export async function extractAllSpecs(
  * 5. Returns the specs and drift result
  *
  * @param config - Optional pre-loaded config. If omitted, auto-discovers and loads.
+ * @param cwd - Optional working directory. Used for resolving paths.
  * @returns The extracted specs and drift detection result.
  */
 export async function run(
-  config?: EnvalidatorConfig,
+  config?: EnvalidocConfig,
+  cwd?: string,
 ): Promise<{ specs: Map<string, EnvVarSpec>; drift: DriftResult | null; warnings: string[] }> {
+  const baseDir = cwd ?? process.cwd();
+  
   const resolved = config
-    ? { ...mergeConfig(config), sources: expandSourceGlobs(config.sources, process.cwd()) }
-    : await loadConfig();
+    ? { ...mergeConfig(config), sources: expandSourceGlobs(config.sources, baseDir) }
+    : await loadConfig(baseDir);
 
   // Extract specs, apply secrets + overrides
   const { specs, warnings } = await extractAllSpecs(
     resolved.sources,
     resolved.secretPatterns,
     resolved.overrides,
+    baseDir,
   );
 
   // Generate and write files
-  const baseDir = process.cwd();
   const mdPath = resolve(baseDir, resolved.output.markdown);
   const envPath = resolve(baseDir, resolved.output.envExample);
 

@@ -31,7 +31,7 @@ function success(msg: string): void {
 }
 
 // Minimal CLI argument parser
-interface CliArgs {
+export interface CliArgs {
   command: string | null;
   config: string | null;
   cwd: string | null;
@@ -42,7 +42,7 @@ interface CliArgs {
   check: boolean;
 }
 
-function parseArgs(argv: string[]): CliArgs {
+export function parseArgs(argv: string[]): CliArgs {
   const args: CliArgs = {
     command: null,
     config: null,
@@ -70,6 +70,8 @@ function parseArgs(argv: string[]): CliArgs {
       args.ignore.push(argv[++i] as string);
     } else if (arg === '--check') {
       args.check = true;
+    } else if (arg === '--version' || arg === '-v') {
+      args.command = 'version';
     } else if (!arg.startsWith('-')) {
       args.command = arg;
     }
@@ -78,7 +80,7 @@ function parseArgs(argv: string[]): CliArgs {
   return args;
 }
 
-function shouldFail(drift: DriftResult, failLevel: string): boolean {
+export function shouldFail(drift: DriftResult, failLevel: string): boolean {
   if (failLevel === 'off') return false;
   if (failLevel === 'warning') return drift.issues.some(
     (i) => i.severity === 'error' || i.severity === 'warning',
@@ -111,10 +113,10 @@ function printDriftJson(drift: DriftResult): void {
 async function main(): Promise<void> {
   const args = parseArgs(process.argv);
 
-  if (!args.command || args.command === 'help') {
+  if (!args.command || args.command === 'help' || args.command === '--help' || args.command === '-h') {
     const usage = [
       '',
-      `${bold}envalidator${reset}`,
+      `${bold}envalidoc${reset}`,
       '',
       'Commands:',
       '  gen       Generate ENVIRONMENT.md and .env.example',
@@ -128,10 +130,17 @@ async function main(): Promise<void> {
       '  --fail-level <error|warning|off>  Minimum severity to fail CI (default: error)',
       '  --ignore <pattern>    Ignore vars matching pattern in drift checks (repeatable)',
       '  --check               Run drift detection after generation (use with gen)',
+      '  --version             Show version number',
       '',
     ].join('\n');
     process.stdout.write(usage);
-    process.exit(0);
+    return;
+  }
+
+  if (args.command === 'version' || args.command === '--version' || args.command === '-v') {
+    const packageJson = await import('../package.json', { with: { type: 'json' } });
+    process.stdout.write(`v${packageJson.default.version}\n`);
+    return;
   }
 
   const baseDir = args.cwd ?? process.cwd();
@@ -142,7 +151,11 @@ async function main(): Promise<void> {
     if (args.command === 'gen') {
       process.stdout.write(`${bold}Generating env documentation${reset}\n`);
 
-      const result = await run();
+      const config = args.config 
+        ? await loadConfig(baseDir, args.config)
+        : await loadConfig(baseDir);
+        
+      const result = await run(config, baseDir);
 
       // Print source warnings
       for (const w of result.warnings) {
@@ -165,7 +178,9 @@ async function main(): Promise<void> {
     } else if (args.command === 'check') {
       process.stdout.write(`${bold}Checking drift${reset}\n`);
 
-      const config = await loadConfig(baseDir);
+      const config = args.config
+        ? await loadConfig(baseDir, args.config)
+        : await loadConfig(baseDir);
       const resolvedEnvFile = args.envFile ?? config.envFilePath;
       const envFilePath = resolve(baseDir, resolvedEnvFile);
 

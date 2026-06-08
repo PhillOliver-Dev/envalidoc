@@ -2,7 +2,7 @@ import { pathToFileURL } from 'node:url';
 import { resolve, join } from 'node:path';
 import { existsSync } from 'node:fs';
 import type {
-  EnvalidatorConfig,
+  EnvalidocConfig,
   ResolvedConfig,
   UserConfigFile,
 } from './types.js';
@@ -14,14 +14,14 @@ import { getModuleIdentifier } from './utils/cjs-bootstrap.js';
  * Type-safe identity function for user config files.
  * Provides editor autocompletion and type checking in the config file.
  */
-export function defineConfig(config: UserConfigFile): EnvalidatorConfig {
-  return config as EnvalidatorConfig;
+export function defineConfig(config: UserConfigFile): EnvalidocConfig {
+  return config as EnvalidocConfig;
 }
 
 const CONFIG_FILE_NAMES = [
-  'envalidator.config.ts',
-  'envalidator.config.js',
-  'envalidator.config.mjs',
+  'envalidoc.config.ts',
+  'envalidoc.config.js',
+  'envalidoc.config.mjs',
 ] as const;
 
 /**
@@ -42,7 +42,7 @@ function findConfigFile(cwd: string): string | null {
  * Load a config file using jiti (handles both TS and JS/ESM).
  * Falls back to dynamic import() for .js/.mjs files if jiti is unavailable.
  */
-async function loadConfigFile(configPath: string): Promise<EnvalidatorConfig> {
+async function loadConfigFile(configPath: string): Promise<EnvalidocConfig> {
   let mod: Record<string, unknown>;
 
   try {
@@ -64,12 +64,12 @@ async function loadConfigFile(configPath: string): Promise<EnvalidatorConfig> {
 
   // The config may be the default export or a named export
   const config =
-    (mod.default as EnvalidatorConfig | undefined) ??
-    (mod.envalidatorConfig as EnvalidatorConfig | undefined);
+    (mod.default as EnvalidocConfig | undefined) ??
+    (mod.envalidocConfig as EnvalidocConfig | undefined);
 
   if (!config || typeof config !== 'object') {
     throw new Error(
-      `Config file "${configPath}" must export a config object (default or named "envalidatorConfig").`,
+      `Config file "${configPath}" must export a config object (default or named "envalidocConfig").`,
     );
   }
 
@@ -79,7 +79,7 @@ async function loadConfigFile(configPath: string): Promise<EnvalidatorConfig> {
 /**
  * Merge a user-provided config with defaults to produce a fully resolved config.
  */
-export function mergeConfig(user: EnvalidatorConfig): ResolvedConfig {
+export function mergeConfig(user: EnvalidocConfig): ResolvedConfig {
   const output = {
     markdown: user.output?.markdown ?? DEFAULT_CONFIG.output.markdown,
     envExample: user.output?.envExample ?? DEFAULT_CONFIG.output.envExample,
@@ -96,26 +96,30 @@ export function mergeConfig(user: EnvalidatorConfig): ResolvedConfig {
 }
 
 /**
- * Load and resolve the envalidator configuration.
+ * Load and resolve the envalidoc configuration.
  *
  * Searches for a config file in `cwd` (defaulting to process.cwd()),
  * merges it with defaults, and validates required fields.
  *
  * @param cwd - Directory to search for config files. Defaults to process.cwd().
+ * @param configPath - Optional explicit path to a config file. If provided, auto-discovery is skipped.
  * @returns The fully resolved configuration.
  */
-export async function loadConfig(cwd?: string): Promise<ResolvedConfig> {
+export async function loadConfig(cwd?: string, configPath?: string): Promise<ResolvedConfig> {
   const baseDir = resolve(cwd ?? process.cwd());
 
-  const configPath = findConfigFile(baseDir);
-  if (!configPath) {
+  const resolvedConfigPath = configPath 
+    ? resolve(baseDir, configPath)
+    : findConfigFile(baseDir);
+    
+  if (!resolvedConfigPath) {
     throw new Error(
-      'No envalidator config file found.\n' +
-        'Create one: envalidator.config.ts, envalidator.config.js, or envalidator.config.mjs',
+      'No envalidoc config file found.\n' +
+        'Create one: envalidoc.config.ts, envalidoc.config.js, or envalidoc.config.mjs',
     );
   }
 
-  const userConfig = await loadConfigFile(configPath);
+  const userConfig = await loadConfigFile(resolvedConfigPath);
 
   if (!userConfig.sources || userConfig.sources.length === 0) {
     throw new Error(

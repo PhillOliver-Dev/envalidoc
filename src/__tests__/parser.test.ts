@@ -75,4 +75,17 @@ describe('parseDotEnv', () => {
     const result = parseDotEnv(input);
     expect(result.get('MESSAGE')).toBe('hello world');
   });
+
+  it('strips export prefix from lines', () => {
+    const input = 'export DATABASE_URL=postgres://localhost/db\nexport API_KEY=secret';
+    const result = parseDotEnv(input);
+    expect(result.get('DATABASE_URL')).toBe('postgres://localhost/db');
+    expect(result.get('API_KEY')).toBe('secret');
+  });
+
+  it('strips export prefix with quoted values', () => {
+    const input = 'export MESSAGE="hello world"';
+    const result = parseDotEnv(input);
+    expect(result.get('MESSAGE')).toBe('hello world');
+  });
 });

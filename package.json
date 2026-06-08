@@ -1,10 +1,10 @@
 {
-  "name": "envalidator",
+  "name": "@phillthedev/envalidoc",
   "version": "0.1.0",
   "description": "Generate ENVIRONMENT.md and .env.example from your envalid specs. Detect drift between your .env and your code.",
   "type": "module",
   "bin": {
-    "envalidator": "./dist/cli.js"
+    "envalidoc": "./dist/cli.js"
   },
   "exports": {
     ".": {
@@ -29,6 +29,10 @@
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run build"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/PhillOliver-Dev/envalidoc"
+  },
   "engines": {
     "node": ">=18"
   },
@@ -36,7 +40,6 @@
     "envalid": ">=7.0.0"
   },
   "devDependencies": {
-    "@types/glob": "^8.1.0",
     "@types/node": "^22.15.0",
     "@typescript-eslint/eslint-plugin": "^8.30.0",
     "@typescript-eslint/parser": "^8.30.0",
